@@ -5,6 +5,7 @@
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/white"
     tools:context=".MainActivity">
 
     <LinearLayout
@@ -42,7 +43,26 @@
 
     </LinearLayout>
 
+    <SeekBar
+        android:id="@+id/thresholdSeekBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:max="300"
+        android:progress="80"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/changeMode" />
 
+    <TextView
+        android:id="@+id/thresholdValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Snap Threshold: 80dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/thresholdSeekBar" />
 
     <FrameLayout
         android:id="@+id/dummyNotes"
@@ -56,19 +76,19 @@
         android:id="@+id/player_view"
         android:layout_width="wrap_content"
         android:layout_height="300dp"
-        android:background="#B7000000"
         android:layout_margin="8dp"
-        app:layout_constraintTop_toBottomOf="@id/debugView"
+        android:background="#B7000000"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/debugView" />
 
     <Button
         android:id="@+id/changeMode"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="ChangeMode"
         android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/debugView"
-        app:layout_constraintEnd_toEndOf="parent" />
+        android:text="ChangeMode"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/debugView" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

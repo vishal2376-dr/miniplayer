@@ -6,6 +6,7 @@ import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
+import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.ViewCompat
@@ -27,8 +28,9 @@ class MainActivity : AppCompatActivity() {
     private var dragStartX = 0f
     private var dragStartY = 0f
 
-    private val snapThresholdDp = 150
-    private val snapThresholdPx by lazy { dpToPx(snapThresholdDp) }
+    private var snapThresholdDp = 80
+    private val snapThresholdPx: Int
+        get() = dpToPx(snapThresholdDp)
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +47,20 @@ class MainActivity : AppCompatActivity() {
         binding.changeMode.setOnClickListener {
             animateChangeMode()
         }
+
+        binding.thresholdSeekBar.progress = snapThresholdDp
+        binding.thresholdValue.text = "Snap Threshold: ${snapThresholdDp}dp"
+
+        binding.thresholdSeekBar.setOnSeekBarChangeListener(object :
+            SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                snapThresholdDp = progress
+                binding.thresholdValue.text = "Snap Threshold: ${snapThresholdDp}dp"
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         binding.playerView.setOnTouchListener { view, event ->
             if (!isMiniMode) return@setOnTouchListener false
@@ -69,13 +85,18 @@ class MainActivity : AppCompatActivity() {
 
                 MotionEvent.ACTION_UP -> {
                     if (lastAction == MotionEvent.ACTION_MOVE) {
-                        snapToCornerBasedOnDirection(
-                            view,
-                            dragStartX,
-                            dragStartY,
-                            event.rawX,
-                            event.rawY
-                        )
+                        val dist = distance(dragStartX, dragStartY, event.rawX, event.rawY)
+                        if (dist > snapThresholdPx) {
+                            snapToCornerBasedOnDirection(
+                                view,
+                                dragStartX,
+                                dragStartY,
+                                event.rawX,
+                                event.rawY
+                            )
+                        } else {
+                            snapToNearestCorner(view)
+                        }
                     }
                 }
             }
@@ -94,14 +115,13 @@ class MainActivity : AppCompatActivity() {
         TransitionManager.beginDelayedTransition(binding.root, transition)
 
         if (!isMiniMode) {
-            // To mini mode
+            // Mini mode
             val height = dpToPx(140)
             val width = dpToPx(200)
 
-            binding.playerView.layoutParams.apply {
+            binding.playerView.layoutParams = binding.playerView.layoutParams.apply {
                 this.height = height
                 this.width = width
-                binding.playerView.layoutParams = this
             }
 
             constraintSet.clear(binding.playerView.id, ConstraintSet.TOP)
@@ -109,12 +129,18 @@ class MainActivity : AppCompatActivity() {
             constraintSet.clear(binding.playerView.id, ConstraintSet.END)
 
             constraintSet.connect(
-                binding.playerView.id, ConstraintSet.BOTTOM,
-                ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, dpToPx(20)
+                binding.playerView.id,
+                ConstraintSet.BOTTOM,
+                ConstraintSet.PARENT_ID,
+                ConstraintSet.BOTTOM,
+                dpToPx(20)
             )
             constraintSet.connect(
-                binding.playerView.id, ConstraintSet.END,
-                ConstraintSet.PARENT_ID, ConstraintSet.END, dpToPx(20)
+                binding.playerView.id,
+                ConstraintSet.END,
+                ConstraintSet.PARENT_ID,
+                ConstraintSet.END,
+                dpToPx(20)
             )
 
             constraintSet.constrainWidth(binding.playerView.id, width)
@@ -122,29 +148,37 @@ class MainActivity : AppCompatActivity() {
 
             isMiniMode = true
         } else {
-            // To full mode
+            // Full mode
             val height = dpToPx(300)
 
-            binding.playerView.layoutParams.apply {
+            binding.playerView.layoutParams = binding.playerView.layoutParams.apply {
                 this.height = height
                 this.width = ConstraintSet.MATCH_CONSTRAINT
-                binding.playerView.layoutParams = this
             }
 
             constraintSet.clear(binding.playerView.id, ConstraintSet.BOTTOM)
             constraintSet.clear(binding.playerView.id, ConstraintSet.END)
 
             constraintSet.connect(
-                binding.playerView.id, ConstraintSet.TOP,
-                binding.debugView.id, ConstraintSet.BOTTOM, 0
+                binding.playerView.id,
+                ConstraintSet.TOP,
+                binding.debugView.id,
+                ConstraintSet.BOTTOM,
+                0
             )
             constraintSet.connect(
-                binding.playerView.id, ConstraintSet.START,
-                ConstraintSet.PARENT_ID, ConstraintSet.START, 0
+                binding.playerView.id,
+                ConstraintSet.START,
+                ConstraintSet.PARENT_ID,
+                ConstraintSet.START,
+                0
             )
             constraintSet.connect(
-                binding.playerView.id, ConstraintSet.END,
-                ConstraintSet.PARENT_ID, ConstraintSet.END, 0
+                binding.playerView.id,
+                ConstraintSet.END,
+                ConstraintSet.PARENT_ID,
+                ConstraintSet.END,
+                0
             )
 
             constraintSet.constrainWidth(binding.playerView.id, ConstraintSet.MATCH_CONSTRAINT)
@@ -170,7 +204,8 @@ class MainActivity : AppCompatActivity() {
         val deltaX = endX - startX
         val deltaY = endY - startY
 
-        val totalDistance = distance(startX, startY, endX, endY)
+        val horizontal = if (deltaX > 0) "right" else "left"
+        val vertical = if (deltaY > 0) "bottom" else "top"
 
         val parentWidth = binding.root.width
         val parentHeight = binding.root.height
@@ -183,29 +218,47 @@ class MainActivity : AppCompatActivity() {
         val topY = margin.toFloat()
         val bottomY = (parentHeight - viewHeight - margin).toFloat()
 
-        val targetX: Float
-        val targetY: Float
-
-        if (totalDistance >= snapThresholdPx) {
-            // Snap based on swipe direction
-            val horizontal = if (deltaX > 0) "right" else "left"
-            val vertical = if (deltaY > 0) "bottom" else "top"
-
-            targetX = if (horizontal == "right") rightX else leftX
-            targetY = if (vertical == "bottom") bottomY else topY
-        } else {
-            // Snap to nearest corner based on current view position
-            val currentX = view.x
-            val currentY = view.y
-
-            targetX = if (currentX < parentWidth / 2) leftX else rightX
-            targetY = if (currentY < parentHeight / 2) topY else bottomY
-        }
+        val targetX = if (horizontal == "right") rightX else leftX
+        val targetY = if (vertical == "bottom") bottomY else topY
 
         view.animate()
             .x(targetX)
             .y(targetY)
-            .setDuration(500)
+            .setDuration(400)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
+    private fun snapToNearestCorner(view: View) {
+        val parentWidth = binding.root.width
+        val parentHeight = binding.root.height
+        val viewWidth = view.width
+        val viewHeight = view.height
+
+        val margin = dpToPx(20)
+
+        val possibleX = listOf(margin.toFloat(), (parentWidth - viewWidth - margin).toFloat())
+        val possibleY = listOf(margin.toFloat(), (parentHeight - viewHeight - margin).toFloat())
+
+        var nearestX = possibleX[0]
+        var nearestY = possibleY[0]
+        var minDistance = Float.MAX_VALUE
+
+        for (x in possibleX) {
+            for (y in possibleY) {
+                val dist = distance(view.x, view.y, x, y)
+                if (dist < minDistance) {
+                    minDistance = dist
+                    nearestX = x
+                    nearestY = y
+                }
+            }
+        }
+
+        view.animate()
+            .x(nearestX)
+            .y(nearestY)
+            .setDuration(400)
             .setInterpolator(DecelerateInterpolator())
             .start()
     }
