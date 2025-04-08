@@ -1,113 +1,222 @@
 package com.vishal2376.miniplayerexperiment
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.TypedValue
-import android.widget.Button
-import androidx.activity.enableEdgeToEdge
+import android.view.MotionEvent
+import android.view.View
+import android.view.animation.DecelerateInterpolator
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.transition.ChangeBounds
+import androidx.transition.TransitionManager
+import com.vishal2376.miniplayerexperiment.databinding.ActivityMainBinding
+import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity() {
 
-    private var isNotestFullScreen = false
+    private lateinit var binding: ActivityMainBinding
+    private var isMiniMode = false
 
+    private var dX = 0f
+    private var dY = 0f
+    private var lastAction = 0
+
+    private var dragStartX = 0f
+    private var dragStartY = 0f
+
+    private val snapThresholdDp = 150
+    private val snapThresholdPx by lazy { dpToPx(snapThresholdDp) }
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        val btnChangeMode = findViewById<Button>(R.id.changeMode)
-        val rootLayout = findViewById<ConstraintLayout>(R.id.root)
+        binding.changeMode.setOnClickListener {
+            animateChangeMode()
+        }
 
-        btnChangeMode.setOnClickListener {
-            val constraintSet = ConstraintSet()
-            constraintSet.clone(rootLayout)
+        binding.playerView.setOnTouchListener { view, event ->
+            if (!isMiniMode) return@setOnTouchListener false
 
-            if (!isNotestFullScreen) {
-                // Mini-player mode dimensions
-                val miniHeight = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 140f, resources.displayMetrics
-                ).toInt()
-                val miniWidth = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 200f, resources.displayMetrics
-                ).toInt()
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    dX = view.x - event.rawX
+                    dY = view.y - event.rawY
+                    dragStartX = event.rawX
+                    dragStartY = event.rawY
+                    lastAction = MotionEvent.ACTION_DOWN
+                }
 
-                constraintSet.constrainHeight(R.id.player_view, miniHeight)
-                constraintSet.constrainWidth(R.id.player_view, miniWidth)
+                MotionEvent.ACTION_MOVE -> {
+                    view.animate()
+                        .x(event.rawX + dX)
+                        .y(event.rawY + dY)
+                        .setDuration(0)
+                        .start()
+                    lastAction = MotionEvent.ACTION_MOVE
+                }
 
-                // Position bottom-right
-                constraintSet.clear(R.id.player_view, ConstraintSet.TOP)
-                constraintSet.connect(
-                    R.id.player_view,
-                    ConstraintSet.END,
-                    ConstraintSet.PARENT_ID,
-                    ConstraintSet.END,
-                    16
-                )
-                constraintSet.connect(
-                    R.id.player_view,
-                    ConstraintSet.BOTTOM,
-                    ConstraintSet.PARENT_ID,
-                    ConstraintSet.BOTTOM,
-                    16
-                )
+                MotionEvent.ACTION_UP -> {
+                    if (lastAction == MotionEvent.ACTION_MOVE) {
+                        snapToCornerBasedOnDirection(
+                            view,
+                            dragStartX,
+                            dragStartY,
+                            event.rawX,
+                            event.rawY
+                        )
+                    }
+                }
+            }
+            true
+        }
+    }
 
-                // dummyNotes takes full height
-                constraintSet.connect(
-                    R.id.dummyNotes, ConstraintSet.TOP, R.id.debugView, ConstraintSet.BOTTOM, 0
-                )
-                constraintSet.connect(
-                    R.id.dummyNotes,
-                    ConstraintSet.BOTTOM,
-                    ConstraintSet.PARENT_ID,
-                    ConstraintSet.BOTTOM,
-                    0
-                )
-                constraintSet.constrainHeight(R.id.dummyNotes, 0)
+    private fun animateChangeMode() {
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(binding.root)
 
-                isNotestFullScreen = true
+        val transition = ChangeBounds().apply {
+            duration = 400
+            interpolator = DecelerateInterpolator()
+        }
+        TransitionManager.beginDelayedTransition(binding.root, transition)
 
-            } else {
-                // Fullscreen player
-                val fullHeight = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 300f, resources.displayMetrics
-                ).toInt()
+        if (!isMiniMode) {
+            // To mini mode
+            val height = dpToPx(140)
+            val width = dpToPx(200)
 
-                constraintSet.constrainHeight(R.id.player_view, fullHeight)
-                constraintSet.constrainWidth(R.id.player_view, ConstraintSet.MATCH_CONSTRAINT)
-
-                constraintSet.connect(
-                    R.id.player_view, ConstraintSet.TOP, R.id.debugView, ConstraintSet.BOTTOM, 0
-                )
-                constraintSet.clear(R.id.player_view, ConstraintSet.BOTTOM)
-                constraintSet.clear(R.id.player_view, ConstraintSet.END)
-
-                // dummyNotes below player_view
-                constraintSet.connect(
-                    R.id.dummyNotes, ConstraintSet.TOP, R.id.player_view, ConstraintSet.BOTTOM, 0
-                )
-                constraintSet.connect(
-                    R.id.dummyNotes,
-                    ConstraintSet.BOTTOM,
-                    ConstraintSet.PARENT_ID,
-                    ConstraintSet.BOTTOM,
-                    0
-                )
-                constraintSet.constrainHeight(R.id.dummyNotes, 0)
-
-                isNotestFullScreen = false
+            binding.playerView.layoutParams.apply {
+                this.height = height
+                this.width = width
+                binding.playerView.layoutParams = this
             }
 
-            constraintSet.applyTo(rootLayout)
+            constraintSet.clear(binding.playerView.id, ConstraintSet.TOP)
+            constraintSet.clear(binding.playerView.id, ConstraintSet.START)
+            constraintSet.clear(binding.playerView.id, ConstraintSet.END)
+
+            constraintSet.connect(
+                binding.playerView.id, ConstraintSet.BOTTOM,
+                ConstraintSet.PARENT_ID, ConstraintSet.BOTTOM, dpToPx(20)
+            )
+            constraintSet.connect(
+                binding.playerView.id, ConstraintSet.END,
+                ConstraintSet.PARENT_ID, ConstraintSet.END, dpToPx(20)
+            )
+
+            constraintSet.constrainWidth(binding.playerView.id, width)
+            constraintSet.constrainHeight(binding.playerView.id, height)
+
+            isMiniMode = true
+        } else {
+            // To full mode
+            val height = dpToPx(300)
+
+            binding.playerView.layoutParams.apply {
+                this.height = height
+                this.width = ConstraintSet.MATCH_CONSTRAINT
+                binding.playerView.layoutParams = this
+            }
+
+            constraintSet.clear(binding.playerView.id, ConstraintSet.BOTTOM)
+            constraintSet.clear(binding.playerView.id, ConstraintSet.END)
+
+            constraintSet.connect(
+                binding.playerView.id, ConstraintSet.TOP,
+                binding.debugView.id, ConstraintSet.BOTTOM, 0
+            )
+            constraintSet.connect(
+                binding.playerView.id, ConstraintSet.START,
+                ConstraintSet.PARENT_ID, ConstraintSet.START, 0
+            )
+            constraintSet.connect(
+                binding.playerView.id, ConstraintSet.END,
+                ConstraintSet.PARENT_ID, ConstraintSet.END, 0
+            )
+
+            constraintSet.constrainWidth(binding.playerView.id, ConstraintSet.MATCH_CONSTRAINT)
+            constraintSet.constrainHeight(binding.playerView.id, height)
+
+            // Reset translation
+            binding.playerView.translationX = 0f
+            binding.playerView.translationY = 0f
+
+            isMiniMode = false
         }
+
+        constraintSet.applyTo(binding.root)
+    }
+
+    private fun snapToCornerBasedOnDirection(
+        view: View,
+        startX: Float,
+        startY: Float,
+        endX: Float,
+        endY: Float
+    ) {
+        val deltaX = endX - startX
+        val deltaY = endY - startY
+
+        val totalDistance = distance(startX, startY, endX, endY)
+
+        val parentWidth = binding.root.width
+        val parentHeight = binding.root.height
+        val viewWidth = view.width
+        val viewHeight = view.height
+
+        val margin = dpToPx(20)
+        val leftX = margin.toFloat()
+        val rightX = (parentWidth - viewWidth - margin).toFloat()
+        val topY = margin.toFloat()
+        val bottomY = (parentHeight - viewHeight - margin).toFloat()
+
+        val targetX: Float
+        val targetY: Float
+
+        if (totalDistance >= snapThresholdPx) {
+            // Snap based on swipe direction
+            val horizontal = if (deltaX > 0) "right" else "left"
+            val vertical = if (deltaY > 0) "bottom" else "top"
+
+            targetX = if (horizontal == "right") rightX else leftX
+            targetY = if (vertical == "bottom") bottomY else topY
+        } else {
+            // Snap to nearest corner based on current view position
+            val currentX = view.x
+            val currentY = view.y
+
+            targetX = if (currentX < parentWidth / 2) leftX else rightX
+            targetY = if (currentY < parentHeight / 2) topY else bottomY
+        }
+
+        view.animate()
+            .x(targetX)
+            .y(targetY)
+            .setDuration(500)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
+    private fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics
+        ).toInt()
     }
 }
