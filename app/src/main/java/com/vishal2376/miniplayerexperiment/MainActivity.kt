@@ -1,6 +1,7 @@
 package com.vishal2376.miniplayerexperiment
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.MotionEvent
@@ -13,6 +14,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.MediaItem
 import com.vishal2376.miniplayerexperiment.databinding.ActivityMainBinding
 import kotlin.math.sqrt
 
@@ -20,17 +23,20 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var isMiniMode = false
+    private var player: ExoPlayer? = null
 
     private var dX = 0f
     private var dY = 0f
     private var lastAction = 0
-
     private var dragStartX = 0f
     private var dragStartY = 0f
 
     private var snapThresholdDp = 80
     private val snapThresholdPx: Int
         get() = dpToPx(snapThresholdDp)
+
+    private val demoUrl =
+        "https://storage.googleapis.com/exoplayer-test-media-0/BigBuckBunny_320x180.mp4"
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,6 +49,8 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+        initializePlayer()
 
         binding.changeMode.setOnClickListener {
             animateChangeMode()
@@ -102,6 +110,27 @@ class MainActivity : AppCompatActivity() {
             }
             true
         }
+    }
+
+    private fun initializePlayer() {
+        player = ExoPlayer.Builder(this).build().also { exoPlayer ->
+            binding.playerView.player = exoPlayer
+
+            val mediaItem = MediaItem.fromUri(Uri.parse(demoUrl))
+            exoPlayer.setMediaItem(mediaItem)
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = true
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        releasePlayer()
+    }
+
+    private fun releasePlayer() {
+        player?.release()
+        player = null
     }
 
     private fun animateChangeMode() {
