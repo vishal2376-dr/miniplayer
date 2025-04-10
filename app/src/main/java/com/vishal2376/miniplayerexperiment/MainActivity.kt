@@ -25,12 +25,6 @@ class MainActivity : AppCompatActivity() {
     private var isMiniMode = false
     private var player: ExoPlayer? = null
 
-    private var dX = 0f
-    private var dY = 0f
-    private var lastAction = 0
-    private var dragStartX = 0f
-    private var dragStartY = 0f
-
     private var snapThresholdDp = 80
     private val snapThresholdPx: Int
         get() = dpToPx(snapThresholdDp)
@@ -75,37 +69,48 @@ class MainActivity : AppCompatActivity() {
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    dX = view.x - event.rawX
-                    dY = view.y - event.rawY
-                    dragStartX = event.rawX
-                    dragStartY = event.rawY
-                    lastAction = MotionEvent.ACTION_DOWN
+                    val dX = view.x - event.rawX
+                    val dY = view.y - event.rawY
+                    val dragStartX = event.rawX
+                    val dragStartY = event.rawY
+
+                    view.setTag(R.id.tag_dx, dX)
+                    view.setTag(R.id.tag_dy, dY)
+                    view.setTag(R.id.tag_start_x, dragStartX)
+                    view.setTag(R.id.tag_start_y, dragStartY)
                 }
 
                 MotionEvent.ACTION_MOVE -> {
+                    val dX = view.getTag(R.id.tag_dx) as? Float ?: 0f
+                    val dY = view.getTag(R.id.tag_dy) as? Float ?: 0f
                     view.animate()
                         .x(event.rawX + dX)
                         .y(event.rawY + dY)
                         .setDuration(0)
                         .start()
-                    lastAction = MotionEvent.ACTION_MOVE
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    if (lastAction == MotionEvent.ACTION_MOVE) {
-                        val dist = distance(dragStartX, dragStartY, event.rawX, event.rawY)
-                        if (dist > snapThresholdPx) {
-                            snapToCornerBasedOnDirection(
-                                view,
-                                dragStartX,
-                                dragStartY,
-                                event.rawX,
-                                event.rawY
-                            )
-                        } else {
-                            snapToNearestCorner(view)
-                        }
+                    val dragStartX = view.getTag(R.id.tag_start_x) as? Float ?: 0f
+                    val dragStartY = view.getTag(R.id.tag_start_y) as? Float ?: 0f
+                    val dist = distance(dragStartX, dragStartY, event.rawX, event.rawY)
+                    if (dist > snapThresholdPx) {
+                        snapToCornerBasedOnDirection(
+                            view,
+                            dragStartX,
+                            dragStartY,
+                            event.rawX,
+                            event.rawY
+                        )
+                    } else {
+                        snapToNearestCorner(view)
                     }
+
+                    // Clear tags after use
+                    view.setTag(R.id.tag_dx, null)
+                    view.setTag(R.id.tag_dy, null)
+                    view.setTag(R.id.tag_start_x, null)
+                    view.setTag(R.id.tag_start_y, null)
                 }
             }
             true
