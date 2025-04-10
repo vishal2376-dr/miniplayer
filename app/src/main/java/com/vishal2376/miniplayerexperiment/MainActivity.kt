@@ -7,7 +7,6 @@ import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
-import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.ViewCompat
@@ -46,26 +45,7 @@ class MainActivity : AppCompatActivity() {
 
         initializePlayer()
 
-        binding.changeMode.setOnClickListener {
-            animateChangeMode()
-        }
-
-        binding.thresholdSeekBar.progress = snapThresholdDp
-        binding.thresholdValue.text = "Snap Threshold: ${snapThresholdDp}dp"
-
-        binding.thresholdSeekBar.setOnSeekBarChangeListener(object :
-            SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                snapThresholdDp = progress
-                binding.thresholdValue.text = "Snap Threshold: ${snapThresholdDp}dp"
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        binding.playerView.setOnTouchListener { view, event ->
-            if (!isMiniMode) return@setOnTouchListener false
+        binding.playerContainer.playerView.setOnTouchListener { view, event ->
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -119,7 +99,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initializePlayer() {
         player = ExoPlayer.Builder(this).build().also { exoPlayer ->
-            binding.playerView.player = exoPlayer
+            binding.playerContainer.playerView.player = exoPlayer
 
             val mediaItem = MediaItem.fromUri(Uri.parse(demoUrl))
             exoPlayer.setMediaItem(mediaItem)
@@ -136,96 +116,6 @@ class MainActivity : AppCompatActivity() {
     private fun releasePlayer() {
         player?.release()
         player = null
-    }
-
-    private fun animateChangeMode() {
-        val constraintSet = ConstraintSet()
-        constraintSet.clone(binding.root)
-
-        val transition = ChangeBounds().apply {
-            duration = 400
-            interpolator = DecelerateInterpolator()
-        }
-        TransitionManager.beginDelayedTransition(binding.root, transition)
-
-        if (!isMiniMode) {
-            // Mini mode
-            val height = dpToPx(140)
-            val width = dpToPx(200)
-
-            binding.playerView.layoutParams = binding.playerView.layoutParams.apply {
-                this.height = height
-                this.width = width
-            }
-
-            constraintSet.clear(binding.playerView.id, ConstraintSet.TOP)
-            constraintSet.clear(binding.playerView.id, ConstraintSet.START)
-            constraintSet.clear(binding.playerView.id, ConstraintSet.END)
-
-            constraintSet.connect(
-                binding.playerView.id,
-                ConstraintSet.BOTTOM,
-                ConstraintSet.PARENT_ID,
-                ConstraintSet.BOTTOM,
-                dpToPx(20)
-            )
-            constraintSet.connect(
-                binding.playerView.id,
-                ConstraintSet.END,
-                ConstraintSet.PARENT_ID,
-                ConstraintSet.END,
-                dpToPx(20)
-            )
-
-            constraintSet.constrainWidth(binding.playerView.id, width)
-            constraintSet.constrainHeight(binding.playerView.id, height)
-
-            isMiniMode = true
-        } else {
-            // Full mode
-            val height = dpToPx(300)
-
-            binding.playerView.layoutParams = binding.playerView.layoutParams.apply {
-                this.height = height
-                this.width = ConstraintSet.MATCH_CONSTRAINT
-            }
-
-            constraintSet.clear(binding.playerView.id, ConstraintSet.BOTTOM)
-            constraintSet.clear(binding.playerView.id, ConstraintSet.END)
-
-            constraintSet.connect(
-                binding.playerView.id,
-                ConstraintSet.TOP,
-                binding.debugView.id,
-                ConstraintSet.BOTTOM,
-                0
-            )
-            constraintSet.connect(
-                binding.playerView.id,
-                ConstraintSet.START,
-                ConstraintSet.PARENT_ID,
-                ConstraintSet.START,
-                0
-            )
-            constraintSet.connect(
-                binding.playerView.id,
-                ConstraintSet.END,
-                ConstraintSet.PARENT_ID,
-                ConstraintSet.END,
-                0
-            )
-
-            constraintSet.constrainWidth(binding.playerView.id, ConstraintSet.MATCH_CONSTRAINT)
-            constraintSet.constrainHeight(binding.playerView.id, height)
-
-            // Reset translation
-            binding.playerView.translationX = 0f
-            binding.playerView.translationY = 0f
-
-            isMiniMode = false
-        }
-
-        constraintSet.applyTo(binding.root)
     }
 
     private fun snapToCornerBasedOnDirection(
